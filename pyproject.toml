@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blenderai-mcp"
+version = "0.1.0"
+description = "MCP server for Blender scene authoring via TCP bridge addon"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "BlenderAI" }]
+dependencies = [
+    "mcp[cli]>=1.2.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+blenderai-mcp = "blenderai_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["mcp_server"]
+
+[tool.setuptools.package-data]
+blenderai_mcp = ["py.typed"]

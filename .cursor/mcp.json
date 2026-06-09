@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "blenderai": {
+      "command": "C:\\Program Files\\Python313\\python.exe",
+      "args": ["-m", "blenderai_mcp.server"],
+      "env": {
+        "BLENDERAI_HOST": "127.0.0.1",
+        "BLENDERAI_PORT": "9876",
+        "BLENDERAI_AUTH_TOKEN": "KD7NPr0G5b910x9HlUD23JQP3T7iJ2JCkS-yYg50zps"
+      }
+    }
+  }
+}
