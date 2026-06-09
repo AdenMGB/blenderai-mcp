@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from ..agent_guidance import with_agent_feedback
 from .common import OBJECT_SCHEMA
 
 OBJECT_TOOL_DEFINITIONS: list[dict] = [
     {
         "name": "object_create_primitive",
         "description": (
-            "Create a mesh primitive in the active Blender scene "
-            "(cube, uv_sphere, cylinder, cone, plane, torus)."
+            "Create a mesh primitive: cube, uv_sphere, cylinder, cone, plane, torus. "
+            "Returns world bounds (min/max/center) — ALWAYS check bounds.min[2] for ground contact "
+            "and bounds overlap when stacking parts (e.g. trunk top z should meet foliage bottom z). "
+            "Default primitives are unit-sized; use scale for size. "
+            "After creating: material_assign + viewport_capture to verify."
         ),
         "inputSchema": {
             "type": "object",
@@ -26,26 +30,31 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             },
             "additionalProperties": False,
         },
-        "outputSchema": OBJECT_SCHEMA,
+        "outputSchema": with_agent_feedback(OBJECT_SCHEMA),
     },
     {
         "name": "object_delete",
-        "description": "Delete a Blender object by name.",
+        "description": (
+            "Delete object by name. Use to remove default Cube/Light clutter. "
+            "Check scene_get_summary.object_count after."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {"name": {"type": "string"}},
             "required": ["name"],
             "additionalProperties": False,
         },
-        "outputSchema": {
-            "type": "object",
-            "properties": {"deleted": {"type": "string"}},
-            "required": ["deleted"],
-        },
+        "outputSchema": with_agent_feedback(
+            {
+                "type": "object",
+                "properties": {"ok": {"type": "boolean"}, "deleted": {"type": "string"}},
+                "required": ["ok", "deleted"],
+            }
+        ),
     },
     {
         "name": "object_rename",
-        "description": "Rename a Blender object.",
+        "description": "Rename an object. Prefer clear names (Tree_Trunk, Wall_North) for batch_execute clarity.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -55,11 +64,15 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["name", "new_name"],
             "additionalProperties": False,
         },
-        "outputSchema": OBJECT_SCHEMA,
+        "outputSchema": with_agent_feedback(OBJECT_SCHEMA),
     },
     {
         "name": "object_set_transform",
-        "description": "Set object location, rotation_euler, and/or scale.",
+        "description": (
+            "Set location, rotation_euler, and/or scale in world space. "
+            "Response includes updated bounds — use bounds.min[2]/max[2] to fix floating gaps "
+            "between connected parts. Prefer this over object_set_parent for layout."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -77,11 +90,14 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["name"],
             "additionalProperties": False,
         },
-        "outputSchema": OBJECT_SCHEMA,
+        "outputSchema": with_agent_feedback(OBJECT_SCHEMA),
     },
     {
         "name": "object_get",
-        "description": "Get structured details for an object by name.",
+        "description": (
+            "Get one object with location, scale, dimensions, world bounds, materials, parent. "
+            "Use bounds to debug structure. Set include_mesh=true for vert/face counts only."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -91,11 +107,11 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["name"],
             "additionalProperties": False,
         },
-        "outputSchema": OBJECT_SCHEMA,
+        "outputSchema": with_agent_feedback(OBJECT_SCHEMA),
     },
     {
         "name": "object_duplicate",
-        "description": "Duplicate an object and optionally assign a new name.",
+        "description": "Duplicate object (mesh data copied). Good for forests, arrays of props.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -105,18 +121,25 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["name"],
             "additionalProperties": False,
         },
-        "outputSchema": {
-            "type": "object",
-            "properties": {
-                "object": OBJECT_SCHEMA,
-                "source": {"type": "string"},
-            },
-            "required": ["object", "source"],
-        },
+        "outputSchema": with_agent_feedback(
+            {
+                "type": "object",
+                "properties": {
+                    "ok": {"type": "boolean"},
+                    "object": OBJECT_SCHEMA,
+                    "source": {"type": "string"},
+                },
+                "required": ["ok", "object", "source"],
+            }
+        ),
     },
     {
         "name": "object_set_parent",
-        "description": "Parent an object to another object, or clear parenting when parent is null.",
+        "description": (
+            "Parent child to parent object. WARNING: can confuse world bounds — prefer keeping "
+            "separate objects with object_set_transform for stylized props. "
+            "If parenting: always verify with object_get bounds + viewport_capture after."
+        ),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -127,11 +150,11 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["name"],
             "additionalProperties": False,
         },
-        "outputSchema": OBJECT_SCHEMA,
+        "outputSchema": with_agent_feedback(OBJECT_SCHEMA),
     },
     {
         "name": "collection_create",
-        "description": "Create a new collection, optionally under a parent collection.",
+        "description": "Create collection for organizing objects (Environment, Characters, Lights).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -141,20 +164,23 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["name"],
             "additionalProperties": False,
         },
-        "outputSchema": {
-            "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "object_count": {"type": "integer"},
-                "objects": {"type": "array", "items": {"type": "string"}},
-                "children": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["name", "object_count", "objects", "children"],
-        },
+        "outputSchema": with_agent_feedback(
+            {
+                "type": "object",
+                "properties": {
+                    "ok": {"type": "boolean"},
+                    "name": {"type": "string"},
+                    "object_count": {"type": "integer"},
+                    "objects": {"type": "array", "items": {"type": "string"}},
+                    "children": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["ok", "name", "object_count", "objects", "children"],
+            }
+        ),
     },
     {
         "name": "collection_link_object",
-        "description": "Link an object into a collection.",
+        "description": "Add object to a collection without moving it.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -164,19 +190,22 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             "required": ["collection", "object"],
             "additionalProperties": False,
         },
-        "outputSchema": {
-            "type": "object",
-            "properties": {
-                "collection": {"type": "string"},
-                "object": {"type": "string"},
-                "linked": {"type": "boolean"},
-            },
-            "required": ["collection", "object", "linked"],
-        },
+        "outputSchema": with_agent_feedback(
+            {
+                "type": "object",
+                "properties": {
+                    "ok": {"type": "boolean"},
+                    "collection": {"type": "string"},
+                    "object": {"type": "string"},
+                    "linked": {"type": "boolean"},
+                },
+                "required": ["ok", "collection", "object", "linked"],
+            }
+        ),
     },
     {
         "name": "collection_list",
-        "description": "List collections in the Blender file.",
+        "description": "List all collections and their objects.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -185,25 +214,28 @@ OBJECT_TOOL_DEFINITIONS: list[dict] = [
             },
             "additionalProperties": False,
         },
-        "outputSchema": {
-            "type": "object",
-            "properties": {
-                "collections": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "name": {"type": "string"},
-                            "object_count": {"type": "integer"},
-                            "objects": {"type": "array", "items": {"type": "string"}},
-                            "children": {"type": "array", "items": {"type": "string"}},
+        "outputSchema": with_agent_feedback(
+            {
+                "type": "object",
+                "properties": {
+                    "ok": {"type": "boolean"},
+                    "collections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "object_count": {"type": "integer"},
+                                "objects": {"type": "array", "items": {"type": "string"}},
+                                "children": {"type": "array", "items": {"type": "string"}},
+                            },
+                            "required": ["name", "object_count", "objects", "children"],
                         },
-                        "required": ["name", "object_count", "objects", "children"],
                     },
+                    "count": {"type": "integer"},
                 },
-                "count": {"type": "integer"},
-            },
-            "required": ["collections", "count"],
-        },
+                "required": ["ok", "collections", "count"],
+            }
+        ),
     },
 ]

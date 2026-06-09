@@ -92,7 +92,9 @@ def object_create_primitive(params: dict) -> dict:
     obj.scale = scale
     _link_object(obj, collection_name)
 
-    return serialize_object(obj)
+    result = serialize_object(obj)
+    result["primitive"] = primitive
+    return result
 
 
 def object_delete(params: dict) -> dict:
@@ -201,9 +203,12 @@ def object_set_parent(params: dict) -> dict:
         parent = context.require_object(parent_name)
         if parent == obj:
             raise ValueError("Object cannot be parented to itself")
-        obj.parent = parent
         if keep_transform:
-            obj.matrix_parent_inverse = parent.matrix_world.inverted() @ obj.matrix_world
+            world_matrix = obj.matrix_world.copy()
+            obj.parent = parent
+            obj.matrix_world = world_matrix
+        else:
+            obj.parent = parent
 
     return serialize_object(obj)
 

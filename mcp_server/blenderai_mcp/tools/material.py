@@ -6,23 +6,27 @@ from typing import Any
 
 import mcp.types as types
 
+from ..agent_guidance import with_agent_feedback
+
 AUTH_TOKEN_SCHEMA = {
     "type": "string",
     "description": "Optional; bridge client injects BLENDERAI_AUTH_TOKEN if omitted.",
 }
 
-MATERIAL_OUTPUT = {
-    "type": "object",
-    "properties": {
-        "ok": {"type": "boolean"},
-        "name": {"type": "string"},
-        "use_nodes": {"type": "boolean"},
-        "principled": {"type": "object"},
-        "node_tree": {"type": "object"},
-        "error": {"type": "object"},
-    },
-    "required": ["ok"],
-}
+MATERIAL_OUTPUT = with_agent_feedback(
+    {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "name": {"type": "string"},
+            "use_nodes": {"type": "boolean"},
+            "principled": {"type": "object"},
+            "node_tree": {"type": "object"},
+            "error": {"type": "object"},
+        },
+        "required": ["ok"],
+    }
+)
 
 
 def _tool(name: str, description: str, input_schema: dict) -> types.Tool:
@@ -37,7 +41,13 @@ def _tool(name: str, description: str, input_schema: dict) -> types.Tool:
 TOOLS = [
     _tool(
         "material_create",
-        "Create a new principled material.",
+        (
+            "Create a node-based material with Principled BSDF. Set base_color [R,G,B,A]. "
+            "Then material_assign to objects. For wood/metal/glass: material_set_principled "
+            "(metallic, roughness, emission). Advanced shader nodes (Noise, Voronoi, Mix, Bump, "
+            "Normal Map, HDRI environment) via execute_python. Always viewport_set_shading MATERIAL "
+            "then viewport_capture to see colors."
+        ),
         {
             "type": "object",
             "properties": {
@@ -50,7 +60,10 @@ TOOLS = [
     ),
     _tool(
         "material_assign",
-        "Assign a material to a mesh object slot.",
+        (
+            "Assign material to mesh object slot (default 0). "
+            "If viewport stays grey, call viewport_set_shading MATERIAL then viewport_capture."
+        ),
         {
             "type": "object",
             "properties": {
@@ -64,7 +77,11 @@ TOOLS = [
     ),
     _tool(
         "material_set_principled",
-        "Set principled BSDF properties (base_color, metallic, roughness, emission).",
+        (
+            "Tune Principled BSDF: base_color, metallic (0-1), roughness (0-1), "
+            "emission_color, emission_strength for glow. Glass: low roughness, metallic 0. "
+            "Metal: metallic 1, low roughness. Leaves: green base_color, high roughness."
+        ),
         {
             "type": "object",
             "properties": {
@@ -82,7 +99,11 @@ TOOLS = [
     ),
     _tool(
         "material_get",
-        "Get material details including node tree summary.",
+        (
+            "Inspect material: principled values + full node_tree summary (nodes, links, sockets). "
+            "Use before editing complex shaders. Build node graphs with execute_python when you "
+            "need Noise/Voronoi/MixRGB/Bump/Mapping nodes."
+        ),
         {
             "type": "object",
             "properties": {

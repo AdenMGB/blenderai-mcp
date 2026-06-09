@@ -6,22 +6,26 @@ from typing import Any
 
 import mcp.types as types
 
+from ..agent_guidance import with_agent_feedback
+
 AUTH_TOKEN_SCHEMA = {
     "type": "string",
     "description": "Optional; bridge client injects BLENDERAI_AUTH_TOKEN if omitted.",
 }
 
-CAMERA_OUTPUT = {
-    "type": "object",
-    "properties": {
-        "ok": {"type": "boolean"},
-        "name": {"type": "string"},
-        "camera": {"type": "object"},
-        "framed_objects": {"type": "array", "items": {"type": "string"}},
-        "error": {"type": "object"},
-    },
-    "required": ["ok"],
-}
+CAMERA_OUTPUT = with_agent_feedback(
+    {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "name": {"type": "string"},
+            "camera": {"type": "object"},
+            "framed_objects": {"type": "array", "items": {"type": "string"}},
+            "error": {"type": "object"},
+        },
+        "required": ["ok"],
+    }
+)
 
 
 def _tool(name: str, description: str, input_schema: dict) -> types.Tool:
@@ -36,7 +40,10 @@ def _tool(name: str, description: str, input_schema: dict) -> types.Tool:
 TOOLS = [
     _tool(
         "camera_create",
-        "Create a camera object.",
+        (
+            "Add camera. Set focal_length (mm): 24 wide, 50 normal, 85 portrait. "
+            "Use camera_frame_objects then viewport_capture for composition checks."
+        ),
         {
             "type": "object",
             "properties": {
@@ -52,7 +59,7 @@ TOOLS = [
     ),
     _tool(
         "camera_set_focal_length",
-        "Set a camera focal length in millimeters.",
+        "Adjust lens mm. Wider = more scene; longer = tighter framing.",
         {
             "type": "object",
             "properties": {
@@ -65,7 +72,10 @@ TOOLS = [
     ),
     _tool(
         "camera_frame_objects",
-        "Frame objects in the camera view (requires Blender GUI).",
+        (
+            "Point camera at object list (requires GUI). Use before viewport_capture "
+            "so the render shows your subject. Pass all parts of multi-object models."
+        ),
         {
             "type": "object",
             "properties": {

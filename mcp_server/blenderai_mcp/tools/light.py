@@ -6,22 +6,26 @@ from typing import Any
 
 import mcp.types as types
 
+from ..agent_guidance import with_agent_feedback
+
 AUTH_TOKEN_SCHEMA = {
     "type": "string",
     "description": "Optional; bridge client injects BLENDERAI_AUTH_TOKEN if omitted.",
 }
 
-LIGHT_OUTPUT = {
-    "type": "object",
-    "properties": {
-        "ok": {"type": "boolean"},
-        "name": {"type": "string"},
-        "type": {"type": "string"},
-        "light": {"type": "object"},
-        "error": {"type": "object"},
-    },
-    "required": ["ok"],
-}
+LIGHT_OUTPUT = with_agent_feedback(
+    {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "name": {"type": "string"},
+            "type": {"type": "string"},
+            "light": {"type": "object"},
+            "error": {"type": "object"},
+        },
+        "required": ["ok"],
+    }
+)
 
 
 def _tool(name: str, description: str, input_schema: dict) -> types.Tool:
@@ -36,7 +40,11 @@ def _tool(name: str, description: str, input_schema: dict) -> types.Tool:
 TOOLS = [
     _tool(
         "light_create",
-        "Create a light (POINT, SUN, SPOT, or AREA).",
+        (
+            "Add light: SUN (outdoor key), AREA (soft studio), SPOT (accent), POINT (bulb). "
+            "Three-point setup: SUN key + AREA fill + low AREA rim. "
+            "viewport_set_shading RENDERED or render_still to judge lighting."
+        ),
         {
             "type": "object",
             "properties": {
@@ -56,7 +64,7 @@ TOOLS = [
     ),
     _tool(
         "light_set_params",
-        "Set parameters on an existing light object.",
+        "Tune energy, color, spot angle/size. Re-capture viewport after lighting changes.",
         {
             "type": "object",
             "properties": {

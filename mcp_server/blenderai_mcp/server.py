@@ -104,3 +104,20 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> types.CallToolResul
             structuredContent=result,
             isError=True,
         )
+
+
+async def _run_stdio() -> None:
+    async with stdio_server() as (read_stream, write_stream):
+        await app.run(
+            read_stream,
+            write_stream,
+            app.create_initialization_options(),
+        )
+
+
+def main() -> None:
+    asyncio.run(_run_stdio())
+
+
+if __name__ == "__main__":
+    main()

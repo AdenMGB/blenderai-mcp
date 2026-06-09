@@ -6,6 +6,7 @@ from typing import Any
 
 import mcp.types as types
 
+from ..agent_guidance import with_agent_feedback
 from ._helpers import image_content_blocks
 
 AUTH_TOKEN_SCHEMA = {
@@ -13,42 +14,46 @@ AUTH_TOKEN_SCHEMA = {
     "description": "Optional; bridge client injects BLENDERAI_AUTH_TOKEN if omitted.",
 }
 
-IMAGE_OUTPUT = {
-    "type": "object",
-    "properties": {
-        "ok": {"type": "boolean"},
-        "filepath": {"type": "string"},
-        "format": {"type": "string"},
-        "images": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "mime_type": {"type": "string"},
-                    "data": {"type": "string", "description": "Base64-encoded PNG"},
+IMAGE_OUTPUT = with_agent_feedback(
+    {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "filepath": {"type": "string"},
+            "format": {"type": "string"},
+            "images": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "mime_type": {"type": "string"},
+                        "data": {"type": "string", "description": "Base64-encoded PNG"},
+                    },
                 },
             },
+            "error": {"type": "object"},
         },
-        "error": {"type": "object"},
-    },
-    "required": ["ok"],
-}
+        "required": ["ok"],
+    }
+)
 
-RENDER_OUTPUT = {
-    "type": "object",
-    "properties": {
-        "ok": {"type": "boolean"},
-        "engine": {"type": "string"},
-        "resolution_x": {"type": "integer"},
-        "resolution_y": {"type": "integer"},
-        "resolution_percentage": {"type": "integer"},
-        "samples": {"type": "integer"},
-        "shading": {"type": "string"},
-        "error": {"type": "object"},
-    },
-    "required": ["ok"],
-}
+RENDER_OUTPUT = with_agent_feedback(
+    {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "engine": {"type": "string"},
+            "resolution_x": {"type": "integer"},
+            "resolution_y": {"type": "integer"},
+            "resolution_percentage": {"type": "integer"},
+            "samples": {"type": "integer"},
+            "shading": {"type": "string"},
+            "error": {"type": "object"},
+        },
+        "required": ["ok"],
+    }
+)
 
 
 def _tool(name: str, description: str, input_schema: dict, output_schema: dict) -> types.Tool:
@@ -63,7 +68,13 @@ def _tool(name: str, description: str, input_schema: dict, output_schema: dict) 
 TOOLS = [
     _tool(
         "viewport_capture",
-        "Capture the 3D viewport as PNG (requires Blender GUI with VIEW_3D area).",
+        (
+            "VISION FEEDBACK LOOP — capture viewport PNG + base64 image for you to analyze. "
+            "Call after meaningful edits (layout, materials, lighting). Requires Blender GUI. "
+            "Before capture: viewport_set_shading MATERIAL or RENDERED. "
+            "Compare image to goal: gaps, floating parts, proportions, colors. "
+            "Returns agent_feedback with next_steps."
+        ),
         {
             "type": "object",
             "properties": {
@@ -75,7 +86,10 @@ TOOLS = [
     ),
     _tool(
         "render_still",
-        "Render a still image using scene render settings; returns filepath and base64 PNG.",
+        (
+            "Full F12-quality render (Cycles/Eevee). Slower than viewport_capture but better "
+            "lighting/shadows. Returns PNG + base64. Use for final hero shots after viewport checks."
+        ),
         {
             "type": "object",
             "properties": {
@@ -88,7 +102,7 @@ TOOLS = [
     ),
     _tool(
         "render_set_engine",
-        "Set render engine (BLENDER_EEVEE_NEXT, CYCLES, BLENDER_WORKBENCH).",
+        "Set engine: BLENDER_EEVEE_NEXT (fast preview), CYCLES (realistic), BLENDER_WORKBENCH.",
         {
             "type": "object",
             "properties": {
@@ -101,7 +115,7 @@ TOOLS = [
     ),
     _tool(
         "render_set_resolution",
-        "Set render resolution.",
+        "Set output resolution. Lower % for faster test renders.",
         {
             "type": "object",
             "properties": {
@@ -115,7 +129,7 @@ TOOLS = [
     ),
     _tool(
         "render_set_samples",
-        "Set render samples for Cycles or Eevee.",
+        "More samples = less noise (Cycles). Use 16-32 for tests, 128+ for finals.",
         {
             "type": "object",
             "properties": {
@@ -128,11 +142,17 @@ TOOLS = [
     ),
     _tool(
         "viewport_set_shading",
-        "Set viewport shading (WIREFRAME, SOLID, MATERIAL, RENDERED). Requires GUI.",
+        (
+            "Set viewport display: WIREFRAME (topology), SOLID (grey), MATERIAL (see colors), "
+            "RENDERED (approx final). Use MATERIAL before viewport_capture to verify materials."
+        ),
         {
             "type": "object",
             "properties": {
-                "shading": {"type": "string"},
+                "shading": {
+                    "type": "string",
+                    "enum": ["WIREFRAME", "SOLID", "MATERIAL", "RENDERED"],
+                },
                 "auth_token": AUTH_TOKEN_SCHEMA,
             },
             "required": ["shading"],
